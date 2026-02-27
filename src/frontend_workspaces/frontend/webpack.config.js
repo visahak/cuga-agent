@@ -135,7 +135,6 @@ export default {
     }),
     new webpack.DefinePlugin({
       FAKE_STREAM: JSON.stringify(fakeStream),
-      "process.env.CUGA_BACKEND_URL": JSON.stringify(process.env.CUGA_BACKEND_URL || ""),
     }),
   ],
   devtool: process.env.NODE_ENV === "production" ? false : "source-map",
@@ -149,8 +148,8 @@ export default {
     historyApiFallback: true,
     proxy: [
       {
-        context: ['/api'],
-        target: 'http://localhost:7860',
+        context: ['/api', '/auth', '/stream', '/stop', '/reset', '/health', '/functions'],
+        target: process.env.CUGA_BACKEND_URL || 'http://localhost:7860',
         changeOrigin: true,
         secure: false,
       },
