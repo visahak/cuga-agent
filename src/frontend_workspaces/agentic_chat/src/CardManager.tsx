@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { marked } from "marked";
+import { downloadAsJSON, downloadAsMarkdown, downloadAsText, downloadAsHTML } from "./downloadUtils";
 
 // Simple ChatInstance interface (no Carbon dependency)
 interface ChatInstance {
@@ -83,9 +84,36 @@ const CardManager: React.FC<CardManagerProps> = ({ chatInstance, threadId }) => 
   >([]);
   const [selectedAnswerId, setSelectedAnswerId] = useState<string | null>(null);
   const [expandedCodePreviews, setExpandedCodePreviews] = useState<{ [key: string]: boolean }>({});
+  const [showDownloadMenu, setShowDownloadMenu] = useState<{ [key: string]: boolean }>({});
   // Loader for next step within this card is derived from processing state
   const cardRef = useRef<HTMLDivElement>(null);
   const stepRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+
+  // Download handler for final answers
+  const handleDownload = (stepId: string, format: 'json' | 'markdown' | 'text' | 'html', answerText: string, parsedContent?: any) => {
+    const data = {
+      final_answer: answerText,
+      timestamp: new Date().toISOString(),
+      step_id: stepId,
+      ...(parsedContent && typeof parsedContent === 'object' ? parsedContent : {}),
+    };
+
+    switch (format) {
+      case 'json':
+        downloadAsJSON(data, 'final_answer');
+        break;
+      case 'markdown':
+        downloadAsMarkdown(answerText, 'final_answer');
+        break;
+      case 'text':
+        downloadAsText(answerText, 'final_answer');
+        break;
+      case 'html':
+        downloadAsHTML(answerText, 'final_answer');
+        break;
+    }
+    setShowDownloadMenu((prev) => ({ ...prev, [stepId]: false }));
+  };
 
   // Function to mark a step as completed
   const markStepCompleted = useCallback((stepId: string) => {
@@ -1821,6 +1849,7 @@ const CardManager: React.FC<CardManagerProps> = ({ chatInstance, threadId }) => 
   const renderStepCard = (step: Step, isCurrentStep: boolean = false) => {
     // Parse content for description - match the logic in renderStepContent
     let parsedContent;
+    let answerText: string | null = null; // For Answer steps, extract the answer text for download
     try {
       if (typeof step.content === "string") {
         try {
@@ -1913,6 +1942,37 @@ const CardManager: React.FC<CardManagerProps> = ({ chatInstance, threadId }) => 
       parsedContent = step.content;
     }
 
+    // Extract answer text for Answer steps (for download functionality)
+    // Debug: Log step title to help identify the correct step name
+    if (step.title.toLowerCase().includes('answer')) {
+      console.log('🔍 DEBUG: Found answer-related step:', {
+        title: step.title,
+        id: step.id,
+        hasContent: !!step.content,
+        parsedContentType: typeof parsedContent,
+        parsedContentKeys: parsedContent && typeof parsedContent === 'object' ? Object.keys(parsedContent) : null
+      });
+    }
+    
+    if (step.title === "Answer") {
+      if (parsedContent) {
+        if (typeof parsedContent === 'object' && parsedContent.final_answer) {
+          answerText = parsedContent.final_answer;
+        } else if (typeof parsedContent === 'object' && parsedContent.data) {
+          // Try to get data field
+          answerText = typeof parsedContent.data === 'string' ? parsedContent.data : JSON.stringify(parsedContent.data);
+        } else if (typeof parsedContent === 'string') {
+          answerText = parsedContent;
+        } else {
+          // Fallback: stringify the entire content
+          answerText = JSON.stringify(parsedContent);
+        }
+      } else if (typeof step.content === 'string') {
+        // Fallback to raw content
+        answerText = step.content;
+      }
+    }
+
     if (step.title === "simple_text") {
       return (
         <div key={step.id} style={{ marginBottom: "10px" }}>
@@ -2000,9 +2060,8 @@ const CardManager: React.FC<CardManagerProps> = ({ chatInstance, threadId }) => 
         {/* Component Content - Only show if showDetails is true */}
         {componentContent && <div>{componentContent}</div>}
 
-        {/* Top-right details toggle */}
-        <button
-          onClick={() => handleToggleDetails(step.id)}
+        {/* Top-right buttons container */}
+        <div
           style={{
             position: "absolute",
             right: "8px",
@@ -2010,33 +2069,208 @@ const CardManager: React.FC<CardManagerProps> = ({ chatInstance, threadId }) => 
             display: "flex",
             alignItems: "center",
             gap: "6px",
-            background: "transparent",
-            border: "1px solid #e5e7eb",
-            borderRadius: "12px",
-            padding: "4px 8px",
-            fontSize: "11px",
-            color: showDetails[step.id] ? "#3b82f6" : "#64748b",
-            cursor: "pointer",
-          }}
-          onMouseOver={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f8fafc";
-          }}
-          onMouseOut={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
           }}
         >
-          <span
+          {/* Download Button for Answer steps */}
+          {(step.title === "Answer" || step.title === "FinalAnswerAgent" || step.title.toLowerCase().includes('answer')) && (
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setShowDownloadMenu((prev) => ({ ...prev, [step.id]: !prev[step.id] }))}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  background: "white",
+                  border: "1px solid #10b981",
+                  borderRadius: "12px",
+                  padding: "4px 8px",
+                  fontSize: "11px",
+                  color: "#10b981",
+                  cursor: "pointer",
+                  fontWeight: "500",
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = "#f0fdf4";
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = "white";
+                }}
+                title="Download final answer"
+              >
+                <span style={{ fontSize: "12px" }}>⬇️</span>
+                <span>Download</span>
+              </button>
+              
+              {showDownloadMenu[step.id] && (
+                <>
+                  {/* Backdrop to close menu */}
+                  <div
+                    style={{
+                      position: "fixed",
+                      inset: "0",
+                      zIndex: 10,
+                    }}
+                    onClick={() => setShowDownloadMenu((prev) => ({ ...prev, [step.id]: false }))}
+                  />
+                  
+                  {/* Dropdown Menu */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: "0",
+                      marginTop: "4px",
+                      width: "160px",
+                      background: "white",
+                      borderRadius: "6px",
+                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                      border: "1px solid #e5e7eb",
+                      zIndex: 20,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div style={{ padding: "4px 0" }}>
+                      <button
+                        onClick={() => handleDownload(step.id, 'json', answerText || 'No content available', parsedContent)}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "8px 12px",
+                          fontSize: "12px",
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          color: "#374151",
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f9fafb";
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }}
+                      >
+                        <span>📄</span>
+                        <span>JSON</span>
+                      </button>
+                      <button
+                        onClick={() => handleDownload(step.id, 'markdown', answerText || 'No content available', parsedContent)}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "8px 12px",
+                          fontSize: "12px",
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          color: "#374151",
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f9fafb";
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }}
+                      >
+                        <span>📝</span>
+                        <span>Markdown</span>
+                      </button>
+                      <button
+                        onClick={() => handleDownload(step.id, 'text', answerText || 'No content available', parsedContent)}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "8px 12px",
+                          fontSize: "12px",
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          color: "#374151",
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f9fafb";
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }}
+                      >
+                        <span>📃</span>
+                        <span>Plain Text</span>
+                      </button>
+                      <button
+                        onClick={() => handleDownload(step.id, 'html', answerText || 'No content available', parsedContent)}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "8px 12px",
+                          fontSize: "12px",
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          color: "#374151",
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f9fafb";
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }}
+                      >
+                        <span>🌐</span>
+                        <span>HTML</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Details toggle button */}
+          <button
+            onClick={() => handleToggleDetails(step.id)}
             style={{
-              display: "inline-block",
-              transform: showDetails[step.id] ? "rotate(180deg)" : "rotate(0deg)",
-              transition: "transform 0.2s ease",
-              fontSize: "12px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "transparent",
+              border: "1px solid #e5e7eb",
+              borderRadius: "12px",
+              padding: "4px 8px",
+              fontSize: "11px",
+              color: showDetails[step.id] ? "#3b82f6" : "#64748b",
+              cursor: "pointer",
+            }}
+            onMouseOver={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f8fafc";
+            }}
+            onMouseOut={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
             }}
           >
-            ▼
-          </span>
-          <span>details</span>
-        </button>
+            <span
+              style={{
+                display: "inline-block",
+                transform: showDetails[step.id] ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 0.2s ease",
+                fontSize: "12px",
+              }}
+            >
+              ▼
+            </span>
+            <span>details</span>
+          </button>
+        </div>
       </div>
     );
   };
