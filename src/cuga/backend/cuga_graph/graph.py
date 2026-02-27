@@ -57,6 +57,7 @@ from cuga.backend.cuga_graph.policy.configurable import PolicyConfigurable
 from cuga.backend.llm.models import LLMManager
 from cuga.config import settings
 from loguru import logger
+from cuga.backend.cuga_graph.nodes.innovation.research_node import ResearchNode
 
 
 class DynamicAgentGraph:
@@ -96,6 +97,7 @@ class DynamicAgentGraph:
         self.filesystem_sync = (
             filesystem_sync if filesystem_sync is not None else settings.policy.filesystem_sync
         )
+        self.research = ResearchNode()
         self.graph = None
 
     async def build_graph(self):
@@ -153,6 +155,7 @@ class DynamicAgentGraph:
         graph.add_node(self.api_shortlister.agent.name, self.api_shortlister.node)
         graph.add_node(self.api_coder.agent.name, self.api_coder.node)
         graph.add_node(self.api_planner.agent.name, self.api_planner.node)
+        graph.add_node(self.research.agent.name, self.research.node)
 
         # Add CugaLite entry node
         graph.add_node(self.cuga_lite.name, self.cuga_lite.node)

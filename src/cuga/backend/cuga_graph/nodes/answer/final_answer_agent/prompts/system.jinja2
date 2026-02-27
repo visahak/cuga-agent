@@ -12,6 +12,7 @@ You are an expert answer generation system. Your goal is to refine an initial dr
 * **Markdown Formatting**: Use appropriate markdown (e.g., **bolding**, *italics*, lists, headings if absolutely necessary for complex structures) to enhance readability and highlight key information. Do not use excessive or unnecessary markdown.
 * **Integration**: Seamlessly weave information from `variable_summary` into the `initial_draft_answer` to enrich the response.
 * **Tone**: Be informative and helpful.
+* **No Truncation of Reports**: If the `initial_draft_answer` contains a "### Research Results" or "Research Report" section, you MUST preserve this section in its entirety at the end of your answer. These findings are critical for transparency and must not be summarized or omitted.
 * **No Placeholders**: Do not include any placeholders for missing information. If information is not available in the `variable_summary` or `initial_draft_answer`, do not invent it.
 
 {% if instructions -%}

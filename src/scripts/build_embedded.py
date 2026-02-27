@@ -19,19 +19,19 @@ def build_and_embed():
     print("📦 Building frontend...")
     subprocess.run(
         ["pnpm", "--filter", "@carbon/ai-chat-examples-web-components-basic", "run", "build"],
-        cwd=base_dir / "frontend_workspaces",
+        cwd=base_dir / "src" / "frontend_workspaces",
         check=True,
     )
 
     # Step 2: Build extension
     print("🔧 Building extension...")
     subprocess.run(
-        ["pnpm", "--filter", "extension", "run", "release"], cwd=base_dir / "frontend_workspaces", check=True
+        ["pnpm", "--filter", "extension", "run", "release"], cwd=base_dir / "src" / "frontend_workspaces", check=True
     )
 
     # Step 3: Embed assets
     print("📦 Embedding assets...")
-    subprocess.run(["uv", "run", "scripts/embed_assets.py"], cwd=base_dir, check=True)
+    subprocess.run(["uv", "run", "src/scripts/embed_assets.py"], cwd=base_dir, check=True)
 
     print("✅ Build completed successfully!")
     print("")

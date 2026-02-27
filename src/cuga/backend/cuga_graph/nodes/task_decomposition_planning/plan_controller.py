@@ -60,6 +60,7 @@ class PlanControllerNode(BaseNode):
             "FinalAnswerAgent",
             "PlanControllerAgent",
             "InterruptToolNode",
+            "ResearchAgent",
         ]
     ]:
         ignore_controller = (
@@ -154,6 +155,8 @@ class PlanControllerNode(BaseNode):
                 )
                 if state.sub_task_type == 'web':
                     return Command(update=state.model_dump(), goto="BrowserPlannerAgent")
+                elif state.sub_task_type in ('innovation', 'research'):
+                    return Command(update=state.model_dump(), goto="ResearchAgent")
                 else:
                     state.api_planner_history = []
                     return Command(update=state.model_dump(), goto="APIPlannerAgent")
@@ -283,6 +286,8 @@ class PlanControllerNode(BaseNode):
 
             if plan_controller_output.next_subtask_type == 'web':
                 return Command(update=state.model_dump(), goto="BrowserPlannerAgent")
+            elif plan_controller_output.next_subtask_type in ('innovation', 'research'):
+                return Command(update=state.model_dump(), goto="ResearchAgent")
             else:
                 state.api_planner_history = []
                 return Command(update=state.model_dump(), goto="APIPlannerAgent")

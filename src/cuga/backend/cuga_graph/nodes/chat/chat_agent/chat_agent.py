@@ -29,9 +29,12 @@ tracker = ActivityTracker()
 @tool
 def execute_task(task: str, relevant_variables: List[str]) -> str:
     """
-    :param task: task to execute
-    :param relevant_variables: relevant variables from history
-    :return:
+    Delegate a complex or technical task to the system's specialized agents and applications.
+    Use this for any request that involves research, data analysis, file evaluation, or searching across applications.
+    
+    :param task: Verbatim user task or a clear description of the technical objective.
+    :param relevant_variables: Names of variables from history that contain relevant data (files, snippets, URLs).
+    :return: "success"
     """
     logger.debug(f"called execute task {task}")
     return "success"
@@ -40,8 +43,11 @@ def execute_task(task: str, relevant_variables: List[str]) -> str:
 @tool
 def run_new_flow(user_task: str) -> str:
     """
-    :param user_task: user_task to execute
-    :return:
+    Initiate a new specialized workflow to handle a user task that matches an available application's capability.
+    Use this for technical tasks, research, evaluations, or complex analysis instead of chatting.
+    
+    :param user_task: The exact task to be analyzed and executed by specialized agents.
+    :return: "success"
     """
     logger.debug(f"called execute task {user_task}")
     return "success"
@@ -105,8 +111,9 @@ class ChatAgent(BaseAgent):
 
         if self.use_regular_chat:
             # Initialize chain for regular mode
+            self.tools = [execute_task]
             model = llm_manager.get_model(settings.agent.planner.model)
-            self.chain = load_prompt_chat("./prompts/pmt_chat.jinja2") | model.bind_tools([execute_task])
+            self.chain = load_prompt_chat("./prompts/pmt_chat.jinja2") | model.bind_tools(self.tools)
             logger.info("Using regular chat mode (legacy execution)")
         else:
             # Connect via SSE for MCP client mode
@@ -212,9 +219,12 @@ class ChatAgent(BaseAgent):
                 raise RuntimeError("Agent not setup properly.")
 
             try:
+                apps_list = await self._get_apps_list()
                 return await self.agent.ainvoke(
                     {
                         "conversation": self.map_chat_messages(chat_messages),
+                        "apps_list": apps_list,
+                        "variables_history": state.variables_manager.get_variables_summary(last_n=10),
                     }
                 )
             except Exception as e:
@@ -270,19 +280,23 @@ class ChatAgent(BaseAgent):
         logger.debug(f"Mapped chat messages: {result}")
         return result
 
+    async def _get_apps_list(self) -> str:
+        """Helper to get and format the available apps list"""
+        apps = await self.tool_provider.get_apps()
+        return "\n".join([f"- {app.name}: {app.description or 'No description'}" for app in apps]) or "No apps available"
+
     async def _run_regular(self, chat_messages: List[BaseMessage], state: AgentState) -> BaseMessage:
         """Regular run method implementation"""
         if not self.chain:
             raise RuntimeError("Chain not initialized for regular mode.")
 
-        apps = await self.tool_provider.get_apps()
-        apps_list = "\n".join([f"- {app.name}: {app.description or 'No description'}" for app in apps])
+        apps_list = await self._get_apps_list()
 
         res = await self.chain.ainvoke(
             {
                 "conversation": self.map_chat_messages(chat_messages),
                 "variables_history": state.variables_manager.get_variables_summary(last_n=10),
-                "apps_list": apps_list or "No apps available",
+                "apps_list": apps_list,
             }
         )
         return res

@@ -14,7 +14,7 @@ from pathlib import Path
 from cuga.backend.utils.id_utils import random_id_with_timestamp
 import traceback
 from pydantic import BaseModel, ValidationError
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.messages import AIMessage
@@ -922,6 +922,38 @@ async def stream(request: Request):
         ),
         media_type="text/event-stream",
     )
+
+
+@app.post("/upload_file")
+async def upload_file(file: UploadFile = File(...)):
+    """
+    Endpoint to handle file uploads.
+    Saves the file to 'cuga_workspace/uploads/' and returns the absolute path.
+    """
+
+    # Create uploads directory if it doesn't exist
+    uploads_dir = os.path.join(PACKAGE_ROOT, "..", "..", "cuga_workspace", "uploads")
+    os.makedirs(uploads_dir, exist_ok=True)
+
+    # Set DOC_PATH environment variable for GPT Researcher
+    os.environ["DOC_PATH"] = uploads_dir
+
+    filename = file.filename
+    file_path = os.path.join(uploads_dir, filename)
+
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        return {
+            "filename": filename,
+            "file_path": os.path.abspath(file_path),
+            "message": "File uploaded successfully"
+        }
+    except Exception as e:
+        logger.error(f"Error saving file: {e}")
+        return {"error": str(e)}
+
 
 
 @app.post("/stop")

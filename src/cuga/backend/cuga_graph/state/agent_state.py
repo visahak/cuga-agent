@@ -897,7 +897,7 @@ class AnalyzeTaskAppsOutput(BaseModel):
     name: str
     description: Optional[str] = None
     url: Optional[str] = None
-    type: Literal['api', 'web'] = 'web'
+    type: Literal['api', 'web', 'innovation', 'research'] = 'web'
 
 
 class AgentState(BaseModel):
@@ -933,7 +933,7 @@ class AgentState(BaseModel):
     api_planner_history: Optional[List[HistoricalAction]] = Field(default_factory=list)
     api_planner_human_consultations: Optional[List[Dict]] = Field(default_factory=list)
     sub_task_app: Optional[str] = None
-    sub_task_type: Optional[Literal['web', 'api']] = None
+    sub_task_type: Optional[Literal['web', 'api', 'innovation', 'research']] = None
     input: str  # User request
     last_planner_answer: Optional[str] = None
     last_question: Optional[str] = None

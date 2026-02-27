@@ -68,6 +68,7 @@ class TaskAnalyzer(BaseNode):
         # Common initialization
         if mode == 'api' or mode == 'hybrid':
             apps = await get_apps()
+            
             if mode == 'api' and len(apps) == 1:
                 return [
                     AnalyzeTaskAppsOutput(
@@ -99,6 +100,7 @@ class TaskAnalyzer(BaseNode):
                             "intent": intent,
                             "available_apps": [{"name": p.name, "description": p.description} for p in apps],
                         },
+                        "available_apps": [{"name": p.name, "description": p.description} for p in apps],
                         "memory": rtrvd_tips_formatted,
                     }
                 )
@@ -163,6 +165,16 @@ class TaskAnalyzer(BaseNode):
         """
         # Use state lite_mode if set, otherwise fallback to settings
         lite_mode = state.lite_mode if state.lite_mode is not None else settings.advanced_features.lite_mode
+
+        # Check for complex intents that require specialized agents (Research Agent)
+        if state.input:
+            intent_lower = state.input.lower()
+            complex_keywords = ["evaluate", "disclosure", "research", "analyze", "summary", "summarize"]
+            if any(kw in intent_lower for kw in complex_keywords):
+                logger.info(
+                    f"Complex intent detected ({next(kw for kw in complex_keywords if kw in intent_lower)}) - disabling fast mode to route to specialized Research Agent"
+                )
+                return False
 
         # Check if fast mode is enabled
         if lite_mode and settings.advanced_features.mode == 'api':

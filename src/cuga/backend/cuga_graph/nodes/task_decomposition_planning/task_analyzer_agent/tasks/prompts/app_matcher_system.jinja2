@@ -12,6 +12,9 @@ Carefully consider the functionality implied by the app's name and description (
 
 **Note**: App descriptions may include their internal tools or capabilities listed as "Available tools:" followed by specific functionalities. Consider these internal tools when evaluating app relevance. Additionally, `default_app` is a possible app name that may appear in the available applications.
 
+Here are the available apps:
+{{available_apps}}
+
 ## Tips:
 1. For relationships friends/coworkers/roommates consider the `phone` app
 2. When dealing with Email app be aware that some of tasks also require **file_system** app, e.g. download attachments or upload.
@@ -200,6 +203,30 @@ Here are examples:
 {
   "thoughts": "The user needs advanced data analysis and visualizations on customer data. 'DataAnalytics' is the most relevant app as its description specifically mentions advanced analysis capabilities and includes tools for statistical analysis, predictive modeling, data visualization, and SQL queries - all directly matching the user's requirements. 'DatabaseManager' would be needed to access the customer database. 'SpreadsheetApp' only offers basic functionality compared to the advanced requirements. 'ReportGenerator' might be useful for final presentation but isn't essential for the core analysis work. The 'default_app' provides only basic functionality which wouldn't meet the advanced analysis needs.",
   "relevant_apps": ["DataAnalytics", "DatabaseManager"]
+}
+```
+
+---
+**Example 8:**
+
+**Input:**
+```json
+{
+  "intent": "Evaluate this disclosure file and summarize its key claims. It's a PDF regarding quantum sensors.",
+  "available_apps": [
+    {"name": "Research Agent", "description": "The definitive system for technical evaluation, ranking, scoring, research, and analysis of topics or files. Supports PDF, PPTX, etc."},
+    {"name": "CodeAgent", "description": "Writes and executes code."},
+    {"name": "SummaryApp", "description": "Summarizes text."},
+    {"name": "default_app", "description": "General purpose app."}
+  ]
+}
+```
+
+**Output:**
+```json
+{
+  "thoughts": "The user wants to evaluate and summarize a specific disclosure file (PDF). The 'Research Agent' is explicitly described as the system for technical evaluation, analysis of files, and summarization. This is a perfect match for the user's intent to 'evaluate' and 'summarize' a 'disclosure'. CodeAgent and generic SummaryApp are less specific/comprehensive for this technical task.",
+  "relevant_apps": ["Research Agent"]
 }
 ```
 

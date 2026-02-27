@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 class DecomposedTask(BaseModel):
     task: str = Field(..., description="task")
     app: str = Field(..., description="app name")
-    type: Literal['api', 'web'] = Field(..., description="app name")
+    type: Literal['api', 'web', 'innovation', 'research'] = Field(..., description="app name")
 
 
 class TaskDecompositionPlan(BaseModel):

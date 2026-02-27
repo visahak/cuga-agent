@@ -42,6 +42,10 @@ async def get_apis(app_name: str):
     """
     all_tools = {}
 
+    if app_name == "Research Agent":
+        return {}
+
+
     # Get tools from tracker
     try:
         logger.debug("calling get_apis")
@@ -115,14 +119,34 @@ async def get_apps() -> List[AppDefinition]:
                 # Parse JSON response
                 json_data = await response.json()
                 result = [AppDefinition(**p) for p in json_data]
+                
+                # Ensure Research Agent has the correct description for discovery
+                # If it exists, remove it first so we can add our enhanced version
+                result = [app for app in result if app.name != "Research Agent"]
+                
+                result.append(AppDefinition(
+                    name="Research Agent",
+                    description="The definitive system for technical evaluation, ranking, scoring, research, and analysis of topics or files. It performs deep web research, technology scouting, competitive analysis, patent discovery, and document summarization. **NATIVELY SUPPORTS: PDF, PPTX, DOCX, TXT files.** This agent should be used for any 'evaluate', 'rank', 'research', 'analyze', or 'summarize' requests, especially those involving uploaded files or URLs."
+                ))
+
                 for e in external_apps:
-                    result.append(e)
+                    if not any(app.name == e.name for app in result):
+                         result.append(e)
 
                 return result
     except Exception as e:
         if len(external_apps) > 0:
             logger.warning("registry is not running, using external apps")
-            return external_apps
+            result = list(external_apps)
+            
+            # Ensure Research Agent has the correct description for discovery
+            result = [app for app in result if app.name != "Research Agent"]
+            
+            result.append(AppDefinition(
+                name="Research Agent",
+                description="The definitive system for technical evaluation, ranking, scoring, research, and analysis of topics or files. It performs deep web research, technology scouting, competitive analysis, patent discovery, and document summarization. **NATIVELY SUPPORTS: PDF, PPTX, DOCX, TXT files.** This agent should be used for any 'evaluate', 'rank', 'research', 'analyze', or 'summarize' requests, especially those involving uploaded files or URLs."
+            ))
+            return result
         else:
             logger.error("Error while calling registry to get apps")
             raise e
