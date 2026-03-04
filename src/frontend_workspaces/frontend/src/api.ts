@@ -119,6 +119,20 @@ export async function getManageConfigVersion(version: string): Promise<Response>
   return apiFetch(`/api/manage/config?version=${encodeURIComponent(version)}`);
 }
 
+export async function getLlmModels(
+  apiKey: string,
+  disableSsl?: boolean,
+  provider?: string
+): Promise<Response> {
+  const params = new URLSearchParams();
+  if (disableSsl) params.set("disable_ssl", "true");
+  if (provider) params.set("provider", provider);
+  const q = params.toString() ? `?${params.toString()}` : "";
+  const headers: Record<string, string> = {};
+  if (apiKey) headers["X-LLM-API-Key"] = apiKey;
+  return apiFetch(`/api/manage/llm/models${q}`, { headers });
+}
+
 export async function getManageConfigHistory(): Promise<Response> {
   return apiFetch("/api/manage/config/history");
 }
@@ -128,6 +142,33 @@ export async function postManageConfigDraft(config: unknown): Promise<Response> 
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ config }),
+  });
+}
+
+export async function patchManageConfigDraftLlm(llm: unknown, agentId?: string): Promise<Response> {
+  const q = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : "";
+  return apiFetch(`/api/manage/config/draft/llm${q}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ llm }),
+  });
+}
+
+export async function patchManageConfigDraftTools(tools: unknown, agentId?: string): Promise<Response> {
+  const q = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : "";
+  return apiFetch(`/api/manage/config/draft/tools${q}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tools }),
+  });
+}
+
+export async function patchManageConfigDraftPolicies(policies: unknown, agentId?: string): Promise<Response> {
+  const q = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : "";
+  return apiFetch(`/api/manage/config/draft/policies${q}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ policies }),
   });
 }
 
@@ -172,4 +213,46 @@ export async function getWorkspaceDownload(path: string): Promise<Response> {
 
 export async function getAgents(): Promise<Response> {
   return apiFetch("/api/agents");
+}
+
+export async function getSecrets(agentId?: string): Promise<Response> {
+  const q = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : "";
+  return apiFetch(`/api/secrets${q}`);
+}
+
+export async function getSecretsConfig(): Promise<Response> {
+  return apiFetch("/api/secrets/config");
+}
+
+export async function createSecret(
+  id: string,
+  value: string,
+  description?: string,
+  tags?: Record<string, string>,
+  agentId?: string
+): Promise<Response> {
+  return apiFetch("/api/secrets", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, value, description, tags, agent_id: agentId }),
+  });
+}
+
+export async function updateSecret(
+  id: string,
+  value: string,
+  description?: string,
+  tags?: Record<string, string>
+): Promise<Response> {
+  return apiFetch(`/api/secrets/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ value, description, tags }),
+  });
+}
+
+export async function deleteSecret(id: string): Promise<Response> {
+  return apiFetch(`/api/secrets/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
 }
