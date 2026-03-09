@@ -82,6 +82,8 @@ RELEASE_NAME="cuga-${INSTANCE_ID}"
 PULL_SECRET_NAME="${INSTANCE_ID}-icr-pull-secret"
 ENV_SECRET_NAME="${INSTANCE_ID}-env-secret"
 CHART_PATH="${SCRIPT_DIR}/cuga"
+KUBECTL_TIMEOUT="${KUBECTL_REQUEST_TIMEOUT:-120}"
+HELM_TIMEOUT="${HELM_TIMEOUT:-10m}"
 TOTAL_STEPS=6
 [[ "$WITH_POSTGRES" != true ]] && TOTAL_STEPS=5
 [[ "$WITH_VAULT" == true ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
@@ -109,7 +111,7 @@ echo ""
 STEP=1
 echo "[${STEP}/${TOTAL_STEPS}] Creating namespace: ${NAMESPACE}"
 kubectl create namespace "${NAMESPACE}" \
-  --dry-run=client -o yaml | kubectl apply -f -
+  --dry-run=client -o yaml | kubectl apply -f - --request-timeout="${KUBECTL_TIMEOUT}"
 ((STEP++))
 
 # ---------------------------------------------------------------------------
@@ -121,12 +123,14 @@ if [[ "$WITH_POSTGRES" == true ]]; then
   kubectl create secret generic postgres-secret \
     --from-literal=password="${POSTGRES_PASSWORD}" \
     --namespace="${NAMESPACE}" \
-    --dry-run=client -o yaml | kubectl apply -f -
+    --dry-run=client -o yaml | kubectl apply -f - --request-timeout="${KUBECTL_TIMEOUT}"
   ((STEP++))
 
   echo "[${STEP}/${TOTAL_STEPS}] Deploying postgres (postgres-pgvector)"
   helm upgrade --install postgres-pgvector "${SCRIPT_DIR}/postgres-pgvector" \
     --namespace "${NAMESPACE}" \
+    --timeout "${HELM_TIMEOUT}" \
+    --disable-openapi-validation \
     --set "auth.database=${POSTGRES_DB:-cuga}" \
     --set "auth.username=${POSTGRES_USER:-cuga}" \
     --set "auth.existingSecret=postgres-secret" \
@@ -144,7 +148,7 @@ kubectl create secret docker-registry "${PULL_SECRET_NAME}" \
   --docker-username=iamapikey \
   --docker-password="${ICR_API_KEY}" \
   --namespace="${NAMESPACE}" \
-  --dry-run=client -o yaml | kubectl apply -f -
+  --dry-run=client -o yaml | kubectl apply -f - --request-timeout="${KUBECTL_TIMEOUT}"
 ((STEP++))
 
 # ---------------------------------------------------------------------------
@@ -169,13 +173,24 @@ if [[ "$WITH_POSTGRES" == true ]]; then
   PG_URL="postgresql://${POSTGRES_USER:-cuga}:${POSTGRES_PASSWORD}@postgres-pgvector.${NAMESPACE}.svc.cluster.local:5432/${POSTGRES_DB:-cuga}"
   SECRET_ARGS+=("--from-literal=DYNACONF_STORAGE__POSTGRES_URL=${PG_URL}")
 else
-  [[ -n "${DYNACONF_STORAGE__POSTGRES_URL:-}" ]] && SECRET_ARGS+=("--from-literal=DYNACONF_STORAGE__POSTGRES_URL=${DYNACONF_STORAGE__POSTGRES_URL}")
+  if [[ -n "${DYNACONF_STORAGE__POSTGRES_URL:-}" ]]; then
+    SECRET_ARGS+=("--from-literal=DYNACONF_STORAGE__POSTGRES_URL=${DYNACONF_STORAGE__POSTGRES_URL}")
+  elif [[ -n "${POSTGRES_PASSWORD:-}" ]]; then
+    PG_URL="postgresql://${POSTGRES_USER:-cuga}:${POSTGRES_PASSWORD}@postgres-pgvector.${NAMESPACE}.svc.cluster.local:5432/${POSTGRES_DB:-cuga}"
+    SECRET_ARGS+=("--from-literal=DYNACONF_STORAGE__POSTGRES_URL=${PG_URL}")
+  else
+    PG_PASS=$(kubectl get secret postgres-secret --namespace="${NAMESPACE}" --request-timeout="${KUBECTL_TIMEOUT}" -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || true)
+    if [[ -n "${PG_PASS}" ]]; then
+      PG_URL="postgresql://${POSTGRES_USER:-cuga}:${PG_PASS}@postgres-pgvector.${NAMESPACE}.svc.cluster.local:5432/${POSTGRES_DB:-cuga}"
+      SECRET_ARGS+=("--from-literal=DYNACONF_STORAGE__POSTGRES_URL=${PG_URL}")
+    fi
+  fi
 fi
 
 kubectl create secret generic "${ENV_SECRET_NAME}" \
   "${SECRET_ARGS[@]}" \
   --namespace="${NAMESPACE}" \
-  --dry-run=client -o yaml | kubectl apply -f -
+  --dry-run=client -o yaml | kubectl apply -f - --request-timeout="${KUBECTL_TIMEOUT}"
 ((STEP++))
 
 # ---------------------------------------------------------------------------
@@ -192,6 +207,8 @@ if [[ "$WITH_VAULT" == true ]]; then
 
   helm upgrade --install vault "${VAULT_CHART_PATH}" \
     --namespace "${NAMESPACE}" \
+    --timeout "${HELM_TIMEOUT}" \
+    --disable-openapi-validation \
     -f "${VAULT_CHART_PATH}/values.openshift.yaml" \
     ${VAULT_TOKEN:+--set "vault.server.extraEnvironmentVars.VAULT_DEV_ROOT_TOKEN_ID=${VAULT_TOKEN}"}
   ((STEP++))
@@ -231,6 +248,7 @@ HELM_ARGS=(
   --set "env.AGENT_SETTING_CONFIG=${AGENT_SETTING_CONFIG}"
   --set "env.DYNACONF_AUTH__ENABLED=${DYNACONF_AUTH__ENABLED:-true}"
   --set "env.DYNACONF_STORAGE__MODE=${STORAGE_MODE}"
+  --set "env.DYNACONF_UI__HIDE_CUGA_LOGO=${DYNACONF_UI__HIDE_CUGA_LOGO:-false}"
   --set "route.enabled=true"
 )
 
@@ -251,6 +269,9 @@ if [[ -n "${ROUTE_HOSTNAME:-}" ]]; then
   HELM_ARGS+=("--set" "route.hostname=${ROUTE_HOSTNAME}")
 fi
 
+HELM_ARGS+=("--timeout" "${HELM_TIMEOUT}")
+HELM_ARGS+=("--disable-openapi-validation")
+
 helm "${HELM_ARGS[@]}"
 
 # ---------------------------------------------------------------------------
@@ -265,6 +286,7 @@ sleep 2
 
 ASSIGNED_HOST=$(kubectl get route "${RELEASE_NAME}" \
   --namespace="${NAMESPACE}" \
+  --request-timeout="${KUBECTL_TIMEOUT}" \
   -o jsonpath='{.spec.host}' 2>/dev/null || true)
 
 echo ""

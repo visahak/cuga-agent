@@ -298,6 +298,30 @@ The script will:
 5. Deploy the Helm chart (`cuga-$INSTANCE_ID`) with the correct image and config
 6. Create an OpenShift Route with edge TLS (HTTPS) and print the access URLs
 
+### Status & inspection
+
+Use the status script to inspect pods, logs, and routes (based on your `openshift.env`):
+
+```bash
+./deployment/helm/status-openshift.sh [path/to/openshift.env] [command]
+```
+
+| Command    | Description                          |
+|------------|--------------------------------------|
+| `pods`     | List CUGA pods (default)              |
+| `all`      | List cuga + postgres + vault pods     |
+| `describe` | Describe CUGA pods                   |
+| `logs`     | Pod logs (add `-f` to follow)        |
+| `route`    | Show route URL and access links       |
+| `events`   | Recent namespace events               |
+| `status`   | Helm release status + pod summary     |
+
+```bash
+./deployment/helm/status-openshift.sh
+./deployment/helm/status-openshift.sh openshift.env logs -f
+./deployment/helm/status-openshift.sh openshift.env describe
+```
+
 ### Access URLs
 
 After deploy, the agent is available at:

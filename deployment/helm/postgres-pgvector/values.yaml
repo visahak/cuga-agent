@@ -16,7 +16,7 @@ service:
 
 persistence:
   enabled: true
-  size: 10Gi
+  size: 2Gi
 
 resources: {}
   # requests:

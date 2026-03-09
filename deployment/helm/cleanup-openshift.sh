@@ -49,6 +49,8 @@ fi
 
 NAMESPACE="${NAMESPACE:-cuga}"
 RELEASE_NAME="cuga-${INSTANCE_ID}"
+KUBECTL_TIMEOUT="${KUBECTL_REQUEST_TIMEOUT:-120}"
+HELM_TIMEOUT="${HELM_TIMEOUT:-10m}"
 PULL_SECRET_NAME="${INSTANCE_ID}-icr-pull-secret"
 ENV_SECRET_NAME="${INSTANCE_ID}-env-secret"
 
@@ -76,7 +78,7 @@ echo ""
 
 echo "[1/4] Uninstalling Helm release: ${RELEASE_NAME}"
 if helm status "${RELEASE_NAME}" --namespace "${NAMESPACE}" &>/dev/null; then
-  helm uninstall "${RELEASE_NAME}" --namespace "${NAMESPACE}"
+  helm uninstall "${RELEASE_NAME}" --namespace "${NAMESPACE}" --timeout "${HELM_TIMEOUT}"
   echo "      Release ${RELEASE_NAME} uninstalled."
 else
   echo "      Release ${RELEASE_NAME} not found, skipping."
@@ -89,8 +91,8 @@ fi
 echo "[2/4] Deleting secrets for instance: ${INSTANCE_ID}"
 
 for secret in "${PULL_SECRET_NAME}" "${ENV_SECRET_NAME}"; do
-  if kubectl get secret "${secret}" --namespace "${NAMESPACE}" &>/dev/null; then
-    kubectl delete secret "${secret}" --namespace "${NAMESPACE}"
+  if kubectl get secret "${secret}" --namespace "${NAMESPACE}" --request-timeout="${KUBECTL_TIMEOUT}" &>/dev/null; then
+    kubectl delete secret "${secret}" --namespace "${NAMESPACE}" --request-timeout="${KUBECTL_TIMEOUT}"
     echo "      Deleted secret: ${secret}"
   else
     echo "      Secret ${secret} not found, skipping."
@@ -104,13 +106,13 @@ done
 if [[ "$WITH_POSTGRES" == true ]]; then
   echo "[3/4] Removing postgres (postgres-pgvector + postgres-secret)"
   if helm status postgres-pgvector --namespace "${NAMESPACE}" &>/dev/null; then
-    helm uninstall postgres-pgvector --namespace "${NAMESPACE}"
+    helm uninstall postgres-pgvector --namespace "${NAMESPACE}" --timeout "${HELM_TIMEOUT}"
     echo "      Release postgres-pgvector uninstalled."
   else
     echo "      Release postgres-pgvector not found, skipping."
   fi
-  if kubectl get secret postgres-secret --namespace "${NAMESPACE}" &>/dev/null; then
-    kubectl delete secret postgres-secret --namespace "${NAMESPACE}"
+  if kubectl get secret postgres-secret --namespace "${NAMESPACE}" --request-timeout="${KUBECTL_TIMEOUT}" &>/dev/null; then
+    kubectl delete secret postgres-secret --namespace "${NAMESPACE}" --request-timeout="${KUBECTL_TIMEOUT}"
     echo "      Deleted secret: postgres-secret"
   else
     echo "      Secret postgres-secret not found, skipping."
@@ -127,7 +129,7 @@ if [[ "$DELETE_NAMESPACE" == true ]]; then
   echo "[4/4] Deleting namespace: ${NAMESPACE}"
   read -r -p "This will delete the ENTIRE namespace '${NAMESPACE}' and ALL resources inside it. Confirm? [y/N] " confirm2
   if [[ "$confirm2" =~ ^[Yy]$ ]]; then
-    kubectl delete namespace "${NAMESPACE}"
+    kubectl delete namespace "${NAMESPACE}" --request-timeout="${KUBECTL_TIMEOUT}"
     echo "      Namespace ${NAMESPACE} deleted."
   else
     echo "      Skipped namespace deletion."
