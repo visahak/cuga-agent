@@ -2,7 +2,7 @@
 
 import os
 import re
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -25,65 +25,23 @@ _UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML
 
 
 # ---------------------------------------------------------------------------
-# Models
-# ---------------------------------------------------------------------------
-
-
-class DocLink(BaseModel):
-    title: str = Field(description="Link text")
-    url: str = Field(description="Absolute URL")
-
-
-class FetchDocPageResult(BaseModel):
-    """Structured result of fetching a single documentation page."""
-
-    content: str = Field(description="Full page content in markdown")
-    url: str = Field(description="Source URL")
-    char_count: int = Field(description="Character count of content")
-    links: list[DocLink] = Field(
-        default_factory=list,
-        description="Same-domain links found on the page the agent can follow with fetch_doc_page",
-    )
-    summary: str | None = Field(
-        default=None,
-        description="LLM-generated summary when page exceeded 100k chars; null otherwise",
-    )
-    was_summarized: bool = Field(
-        default=False,
-        description="True if content was large and an LLM summary was generated",
-    )
-
-
-# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _extract_same_domain_links(soup: BeautifulSoup, base_url: str) -> list[DocLink]:
-    """Extract links that share the same netloc as base_url."""
-    base_netloc = urlparse(base_url).netloc
-    seen: set[str] = set()
-    links: list[DocLink] = []
-    for a in soup.select("a[href]"):
-        href = a.get("href", "").strip()
-        if not href or href.startswith("#"):
-            continue
-        absolute = urljoin(base_url, href)
-        parsed = urlparse(absolute)
-        if parsed.scheme not in ("http", "https"):
-            continue
-        if parsed.netloc != base_netloc:
-            continue
-        normalized = parsed.scheme + "://" + parsed.netloc + parsed.path.rstrip("/")
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        title = a.get_text(strip=True) or parsed.path
-        links.append(DocLink(title=title, url=absolute))
-    return links
+def _html_to_md(html: str) -> str:
+    """Convert HTML to cleaned markdown, collapsing excessive blank lines."""
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.find_all(EXCLUDED_TAGS):
+        tag.decompose()
+    body = soup.select_one("body") or soup
+    raw = md(str(body), strip=["img"])
+    # Collapse 3+ consecutive blank lines down to a single blank line
+    cleaned = re.sub(r"\n{3,}", "\n\n", raw)
+    return cleaned.strip()
 
 
-async def _fetch_single_page(url: str) -> tuple[str, list[DocLink]]:
+async def _fetch_single_page(url: str) -> str:
     timeout_ms = int(os.getenv("DOCSEARCH_TIMEOUT", "15")) * 1000
     from playwright.async_api import async_playwright
 
@@ -97,12 +55,7 @@ async def _fetch_single_page(url: str) -> tuple[str, list[DocLink]]:
         finally:
             await browser.close()
 
-    soup = BeautifulSoup(html, "html.parser")
-    links = _extract_same_domain_links(soup, url)
-    for tag in soup.find_all(EXCLUDED_TAGS):
-        tag.decompose()
-    body = soup.select_one("body") or soup
-    return md(str(body), strip=["img"]).strip(), links
+    return _html_to_md(html)
 
 
 async def _summarize_large_content(content: str) -> str | None:
@@ -148,7 +101,7 @@ async def search_doc(search_url: str) -> str:
     if parsed.scheme not in ("http", "https"):
         return f"Only http/https URLs are allowed. Rejected: {search_url}"
     try:
-        content, _ = await _fetch_single_page(search_url)
+        content = await _fetch_single_page(search_url)
         logger.info("search_doc: %s | %d chars", search_url, len(content))
         return content
     except Exception as e:
@@ -156,15 +109,12 @@ async def search_doc(search_url: str) -> str:
 
 
 @mcp.tool()
-async def fetch_doc_page(url: str) -> FetchDocPageResult | str:
-    """Fetch a documentation page by URL and return its full markdown content plus same-domain links.
+async def fetch_doc_page(url: str) -> str:
+    """Fetch a documentation page by URL and return its full content as markdown.
 
     Use this to:
     - Load a known docs URL the agent already has
-    - Follow a link returned in a previous fetch_doc_page result
-
-    The returned `links` field contains same-domain URLs found on the page —
-    the agent can call fetch_doc_page again on any of those to go deeper.
+    - Follow any link found within a previous fetch_doc_page result
 
     Args:
         url: Full documentation URL (http/https) to fetch.
@@ -174,24 +124,17 @@ async def fetch_doc_page(url: str) -> FetchDocPageResult | str:
     if parsed.scheme not in ("http", "https"):
         return f"Only http/https URLs are allowed. Rejected: {url}"
     try:
-        content, links = await _fetch_single_page(url)
+        content = await _fetch_single_page(url)
         header = f"# {url.split('/')[-1].split('?')[0] or 'Documentation'}\n**Source:** {url}\n\n"
         full_content = header + content
         char_count = len(full_content)
-        summary = None
-        was_summarized = False
         if char_count > LARGE_PAGE_CHARS:
             summary = await _summarize_large_content(full_content)
-            was_summarized = summary is not None
-        logger.info("fetch_doc_page: %s | %d chars | %d links", url, char_count, len(links))
-        return FetchDocPageResult(
-            content=full_content,
-            url=url,
-            char_count=char_count,
-            links=links,
-            summary=summary,
-            was_summarized=was_summarized,
-        )
+            if summary:
+                logger.info("fetch_doc_page (summarized): %s | %d chars", url, char_count)
+                return f"# {url.split('/')[-1].split('?')[0] or 'Documentation'}\n**Source:** {url}\n\n> *Page was large ({char_count:,} chars) — LLM summary below.*\n\n{summary}"
+        logger.info("fetch_doc_page: %s | %d chars", url, char_count)
+        return full_content
     except Exception as e:
         return f"[Error fetching page: {e}]"
 
@@ -222,14 +165,18 @@ class GrepFilterResult(BaseModel):
     )
 
 
+def _keywords_to_pattern(keywords: str) -> str:
+    """Convert 'release notes | building agents' to a safe OR regex."""
+    terms = [re.escape(k.strip()) for k in keywords.split("|") if k.strip()]
+    return "|".join(terms)
+
+
 def _grep_filter_content(
     content: str,
     pattern: str,
     case_sensitive: bool = False,
-    context_lines: int = 1,
     max_matches: int = 50,
 ) -> GrepFilterResult:
-    """Filter documentation content by grep-like pattern. Returns Pydantic struct."""
     flags = 0 if case_sensitive else re.IGNORECASE
     try:
         pat = re.compile(pattern, flags)
@@ -258,7 +205,7 @@ def _grep_filter_content(
             if len(matches) >= max_matches:
                 break
 
-    parts = [f"## Grep results for pattern `{pattern}` ({len(matches)} matches)\n"]
+    parts = [f"## Grep results for `{pattern}` ({len(matches)} matches)\n"]
     for sect, lines_list in section_matches.items():
         clean_title = (
             re.sub(r"^#+\s*", "", sect) if sect and sect != "(no section)" else sect or "(no section)"
@@ -267,48 +214,71 @@ def _grep_filter_content(
         parts.extend(lines_list)
         parts.append("")
 
-    formatted_section = "\n".join(parts).strip()
-
     return GrepFilterResult(
         pattern=pattern,
         total_matches=len(matches),
         matches=matches[:max_matches],
-        formatted_section=formatted_section,
+        formatted_section="\n".join(parts).strip(),
     )
+
+
+def _filter_grep(
+    content: str,
+    keywords: str,
+    pattern: str = "",
+    case_sensitive: bool = False,
+    max_matches: int = 50,
+) -> GrepFilterResult:
+    if keywords and pattern:
+        return GrepFilterResult(
+            pattern="",
+            total_matches=0,
+            matches=[],
+            formatted_section="**Error:** provide `keywords` or `pattern`, not both.",
+        )
+    if not keywords and not pattern:
+        return GrepFilterResult(
+            pattern="",
+            total_matches=0,
+            matches=[],
+            formatted_section="**Error:** provide at least one of `keywords` or `pattern`.",
+        )
+    max_matches = max(1, min(100, max_matches))
+    resolved = _keywords_to_pattern(keywords) if keywords else pattern
+    return _grep_filter_content(content, resolved, case_sensitive, max_matches)
 
 
 @mcp.tool()
 def filter_grep(
     content: str,
-    pattern: str,
+    keywords: str,
+    pattern: str = "",
     case_sensitive: bool = False,
-    context_lines: int = 1,
     max_matches: int = 50,
 ) -> GrepFilterResult:
-    """Filter documentation content by grep-like pattern. Returns structured result.
+    """Filter documentation content by keywords or regex. Returns structured result.
 
-    Use this after fetch_doc_page to narrow down specific lines (e.g. config keys,
-    error codes, API endpoints). Supports regex patterns.
+    Prefer `keywords` for most searches — separate terms with `|` for OR matching.
+    Use `pattern` only when you need raw regex.
+    Providing both is an error.
 
     Examples:
-        filter_grep(content, r"timeout|retry")               # timeout or retry
-        filter_grep(content, r"^\\s*- ", max_matches=20)     # bullet points
-        filter_grep(content, r"Error \\d+")                  # Error 123, Error 456
-        filter_grep(content, r"api_key|API_KEY")             # auth-related
+        filter_grep(content, keywords="release notes")
+        filter_grep(content, keywords="building agents | catalog | getting started")
+        filter_grep(content, keywords="api key | authentication", max_matches=20)
+        filter_grep(content, keywords="", pattern=r"https?://\\S+")  # regex fallback
 
     Args:
         content: Documentation markdown (e.g. from fetch_doc_page).
-        pattern: Regex pattern to match (e.g. "timeout", r"Error \\d+").
-        case_sensitive: If False, match case-insensitively.
-        context_lines: Lines of context around each match (0-3).
+        keywords: Plain keyword string; separate alternatives with ` | ` (e.g. "release | deprecation").
+        pattern: Raw regex — only use when keywords aren't expressive enough.
+        case_sensitive: If False (default), match case-insensitively.
         max_matches: Stop after this many matches (1-100).
 
     Returns:
         GrepFilterResult with matches, line numbers, sections, and formatted markdown.
     """
-    context_lines = max(0, min(3, context_lines))
-    max_matches = max(1, min(100, max_matches))
-    return _grep_filter_content(content, pattern, case_sensitive, context_lines, max_matches)
+    return _filter_grep(content, keywords, pattern, case_sensitive, max_matches)
 
 
 # ---------------------------------------------------------------------------
