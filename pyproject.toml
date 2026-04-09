@@ -34,6 +34,7 @@ dependencies = [
     "langchain-groq>=0.3.8",
     "langchain-litellm",
     "litellm>=1.83.0",
+    "openlit>=1.40.3",
     "tavily-python",
     "fastembed>=0.4.0",
     "a2a-sdk[http-server]>=0.3.22",
@@ -44,7 +45,6 @@ dependencies = [
     "cryptography>=44.0.0",
     "hvac>=2.0.0",
     "boto3>=1.34.0",
-    "openlit>=1.40.1",
     # Knowledge engine (replaces OpenRAG)
     "langchain-docling>=2.0,<3.0",
     "langchain-ollama>=0.2.0",
@@ -73,10 +73,11 @@ constraint-dependencies = [
     "setuptools<70",   # milvus-lite requires pkg_resources (removed in setuptools 70+)
 ]
 
-# openlit 1.40.1 declares openai<2; litellm>=1.83 needs openai 2.x (CVE-2026-35030 / GHSA-jjhc-v7c2-5hh6).
+# OpenLit 1.40.x declares openai<2 on PyPI; litellm>=1.83 needs openai>=2. Core behavior is compatible with
+# OpenAI v2 — override metadata so installs resolve. Refresh when bumping openlit if PyPI relaxes this.
 [[tool.uv.dependency-metadata]]
 name = "openlit"
-version = "1.40.1"
+version = "1.40.3"
 requires-dist = [
     "anthropic>=0.42.0,<1.0.0",
     "boto3>=1.34.0,<2.0.0",

@@ -18,7 +18,7 @@ constraints = [
 
 [[manifest.dependency-metadata]]
 name = "openlit"
-version = "1.40.1"
+version = "1.40.3"
 requires-dist = ["anthropic>=0.42.0,<1.0.0", "boto3>=1.34.0,<2.0.0", "botocore>=1.34.0,<2.0.0", "openai>=1.1.1,<3.0.0", "opentelemetry-api>=1.38.0,<2.0.0", "opentelemetry-exporter-otlp>=1.38.0,<2.0.0", "opentelemetry-instrumentation>=0.52b0,<1.0.0", "opentelemetry-instrumentation-aiohttp-client>=0.52b0,<1.0.0", "opentelemetry-instrumentation-asgi>=0.52b0,<1.0.0", "opentelemetry-instrumentation-django>=0.52b0,<1.0.0", "opentelemetry-instrumentation-falcon>=0.52b0,<1.0.0", "opentelemetry-instrumentation-fastapi>=0.52b0,<1.0.0", "opentelemetry-instrumentation-flask>=0.52b0,<1.0.0", "opentelemetry-instrumentation-httpx>=0.52b0,<1.0.0", "opentelemetry-instrumentation-pyramid>=0.52b0,<1.0.0", "opentelemetry-instrumentation-requests>=0.52b0,<1.0.0", "opentelemetry-instrumentation-starlette>=0.52b0,<1.0.0", "opentelemetry-instrumentation-tornado>=0.52b0,<1.0.0", "opentelemetry-instrumentation-urllib>=0.52b0,<1.0.0", "opentelemetry-instrumentation-urllib3>=0.52b0,<1.0.0", "opentelemetry-sdk>=1.38.0,<2.0.0", "opentelemetry-semantic-conventions>=0.59b0,<1.0.0", "pydantic>=2.0.0,<3.0.0", "requests>=2.26.0,<3.0.0", "schedule>=1.2.2,<2.0.0", "xmltodict>=0.13.0,<1.0.0"]
 
 [[package]]
@@ -862,7 +862,7 @@ requires-dist = [
     { name = "markdownify" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
     { name = "mem0ai", extras = ["extras"], marker = "extra == 'memory'" },
-    { name = "openlit", specifier = ">=1.40.1" },
+    { name = "openlit", specifier = ">=1.40.3" },
     { name = "pgvector", specifier = ">=0.4.2" },
     { name = "playwright", specifier = "==1.49.0" },
     { name = "psutil", specifier = ">=7.0.0" },
@@ -3775,7 +3775,7 @@ wheels = [
 
 [[package]]
 name = "openlit"
-version = "1.40.1"
+version = "1.40.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anthropic" },
@@ -3805,9 +3805,9 @@ dependencies = [
     { name = "schedule" },
     { name = "xmltodict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ae/e9/73975f9a0e3a2dce4c5dc9b50f3d5f0af8c12b1c1c06c2d7ff0b916054e8/openlit-1.40.1.tar.gz", hash = "sha256:b74bd898e0e63ad033f923c3dcaeb46e6ea804058e1177f7ac819995e897ca85", size = 407217, upload-time = "2026-04-02T07:45:38.977Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9a/4d/ea90dbb99465cc6c87ebb744974cf7a7c58a294b39c231f95f64a2434356/openlit-1.40.3.tar.gz", hash = "sha256:122109d7d1465333503d121f68ff2db65d44b572294a434ddcfdb794414ca44b", size = 408456, upload-time = "2026-04-08T17:24:40.91Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/16/50/c5557dd444e41aa39d1f583cfd33e1ad53a29a3c1546776f33cbaae8f3bc/openlit-1.40.1-py3-none-any.whl", hash = "sha256:c19e86560ee5a7e8d0f137e20f77cbe2ce516feff288344622e08728e7d111b5", size = 575096, upload-time = "2026-04-02T07:45:37.622Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/bc/15189f8b8987eaf2a727f626c425150ef479ede4747868007f9cf883d8c5/openlit-1.40.3-py3-none-any.whl", hash = "sha256:8416bdde6df1fa1bafed83dbce2a8d84cd1d3d741eef9b638bd9b079baec3fd3", size = 576669, upload-time = "2026-04-08T17:24:39.353Z" },
 ]
 
 [[package]]
