@@ -23,6 +23,7 @@ from cuga.backend.cuga_graph.policy.cli import app as policy_app
 from cuga.backend.server.demo_manage_setup import (
     build_tools_from_apps,
     get_default_apps_for_preset,
+    seed_demo_knowledge_oobe_pdf_if_needed,
     setup_demo_manage_config,
 )
 from cuga.backend.server.managed_mcp import ensure_managed_mcp_file_exists, get_managed_mcp_path
@@ -423,6 +424,11 @@ def run_direct_service(
         env = os.environ.copy()
         env['FORCE_COLOR'] = '1'
 
+        # Ensure airgapped/container mode is fast by skipping syncs and setting paths
+        env['UV_OFFLINE'] = '1'
+        # Use PACKAGE_ROOT to find the src directory consistently across installations
+        src_root = os.path.abspath(os.path.join(PACKAGE_ROOT, ".."))
+        env['PYTHONPATH'] = os.path.pathsep.join([src_root, env.get('PYTHONPATH', '')]).strip(os.path.pathsep)
         # On Windows, set UTF-8 encoding to handle Unicode characters in subprocess output
         if IS_WINDOWS:
             env['PYTHONIOENCODING'] = 'utf-8'
@@ -770,7 +776,7 @@ def start(
     digital_sales: bool = typer.Option(
         False,
         "--digital-sales",
-        help="Enable Digital Sales app (demo preset includes it by default)",
+        help="Enable Digital Sales OpenAPI tool (opt-in; off by default for demo / demo_knowledge)",
     ),
     filesystem: bool = typer.Option(
         False,
@@ -815,13 +821,14 @@ def start(
       - registry: Starts only the registry service directly (uvicorn on port 8001)
       - appworld: Starts AppWorld environment and API servers (environment on port 8000, api on port 9000)
     App flags (--crm, --email, --digital-sales, --docs, --filesystem) add apps to the preset:
-      - demo: default = digital_sales + filesystem
+      - demo: default = filesystem only (add --digital-sales for Digital Sales API)
       - demo_crm: default = crm + filesystem + email
       - manager: default = filesystem only
       - demo_health: default = oak_health only
 
     Examples:
-      cuga start demo                     # digital_sales + filesystem
+      cuga start demo                     # registry + demo + filesystem MCP
+      cuga start demo --digital-sales     # also enable Digital Sales OpenAPI tool
       cuga start demo --crm               # add CRM to demo
       cuga start demo_crm                 # crm + filesystem + email
       cuga start demo_crm --no-email      # crm + filesystem only
@@ -1052,6 +1059,8 @@ def start(
                 logger.error("Demo service failed to start. Exiting.")
                 stop_direct_processes()
                 raise typer.Exit(1)
+
+            seed_demo_knowledge_oobe_pdf_if_needed(settings.server_ports.demo)
 
             if direct_processes:
                 table = Table(show_header=False, box=None, padding=(0, 1))
@@ -1420,7 +1429,7 @@ def viz():
     try:
         trajectory_data_path = TRAJECTORY_DATA_DIR
         subprocess.run(
-            ["uv", "run", "--group", "dev", "cuga-viz", "run", trajectory_data_path],
+            ["uv", "run", "--no-sync", "--group", "dev", "cuga-viz", "run", trajectory_data_path],
             capture_output=False,
             text=False,
         )
@@ -1629,6 +1638,9 @@ def evaluate(
         run_direct_service(
             "registry",
             [
+                "uv",
+                "run",
+                "--no-sync",
                 "uvicorn",
                 "cuga.backend.tools_env.registry.registry.api_registry_server:app",
                 "--host",
@@ -1658,6 +1670,7 @@ def evaluate(
                 [
                     "uv",
                     "run",
+                    "--no-sync",
                     "--group",
                     "dev",
                     os.path.join(PACKAGE_ROOT, "evaluation/evaluate_cuga.py"),
