@@ -39,12 +39,25 @@ class EvolveIntegration:
         return True
 
     @classmethod
-    async def get_guidelines(cls, task: str) -> Optional[str]:
+    async def get_guidelines(
+        cls,
+        task: str,
+        user_id: Optional[str] = None,
+        namespace_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> Optional[str]:
         """Fetch guidelines from Evolve for the given task description."""
         if not cls.is_enabled():
             return None
         try:
-            result = await cls._call_tool("get_guidelines", {"task": task})
+            args: dict = {"task": task}
+            if user_id:
+                args["user_id"] = user_id
+            if namespace_id:
+                args["namespace_id"] = namespace_id
+            if session_id:
+                args["session_id"] = session_id
+            result = await cls._call_tool("get_guidelines", args)
             if result:
                 logger.info(f"Evolve: Received guidelines ({len(str(result))} chars)")
                 return str(result)
@@ -60,6 +73,9 @@ class EvolveIntegration:
         chat_messages: List[BaseMessage],
         task_id: str,
         success: bool,
+        user_id: Optional[str] = None,
+        namespace_id: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> None:
         """Save the agent trajectory to Evolve for tip generation."""
         if not cls.is_enabled():
@@ -86,13 +102,17 @@ class EvolveIntegration:
                 f"task_id={task_id[:80]}, success={success})"
             )
             logger.debug(f"Evolve: trajectory_data preview: {trajectory_json[:500]}")
-            await cls._call_tool(
-                "save_trajectory",
-                {
-                    "trajectory_data": trajectory_json,
-                    "task_id": task_id,
-                },
-            )
+            args: dict = {
+                "trajectory_data": trajectory_json,
+                "task_id": task_id,
+            }
+            if user_id:
+                args["user_id"] = user_id
+            if namespace_id:
+                args["namespace_id"] = namespace_id
+            if session_id:
+                args["session_id"] = session_id
+            await cls._call_tool("save_trajectory", args)
             logger.info("Evolve: Trajectory saved successfully")
         except Exception as e:
             logger.warning(f"Evolve save_trajectory failed (non-fatal): {e}")

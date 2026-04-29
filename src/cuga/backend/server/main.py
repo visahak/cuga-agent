@@ -1178,6 +1178,7 @@ async def event_stream(
         from cuga.config import get_service_instance_id, get_tenant_id
 
         local_state.service_scope = {"tenant_id": get_tenant_id(), "instance_id": get_service_instance_id()}
+        local_state.user_id = user_id  # Propagate authenticated user into graph state
         if os.getenv("CUGA_DEMO_MODE") == "health" and not local_state.pi:
             from cuga.backend.server.demo_manage_setup import HEALTH_USER_CONTEXT
 

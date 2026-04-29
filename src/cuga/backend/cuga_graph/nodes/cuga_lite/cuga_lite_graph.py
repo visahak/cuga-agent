@@ -441,6 +441,7 @@ class CugaLiteState(BaseModel):
     - hitl_response: Optional[ActionResponse] (human-in-the-loop response)
     - sender: str (node that sent the current state)
     - service_scope: Dict[str, str] (tenant_id, instance_id for multi-tenant/prod scoping)
+    - user_id: str (caller user ID for Evolve attribution and scoping)
 
     Subgraph-only keys:
     - script, execution_complete, error, metrics
@@ -456,6 +457,7 @@ class CugaLiteState(BaseModel):
     chat_messages: Optional[List[BaseMessage]] = Field(default_factory=list)
     final_answer: Optional[str] = ""
     thread_id: Optional[str] = None
+    user_id: Optional[str] = "default"  # Shared with AgentState for per-user Evolve context
     service_scope: Optional[Dict[str, str]] = Field(
         default_factory=lambda: {"tenant_id": "", "instance_id": ""}
     )
@@ -1160,7 +1162,12 @@ def create_cuga_lite_graph(
                             task_description = msg.content
                             break
                 if task_description:
-                    evolve_guidelines = await EvolveIntegration.get_guidelines(task_description)
+                    evolve_guidelines = await EvolveIntegration.get_guidelines(
+                        task_description,
+                        user_id=state.user_id or None,
+                        namespace_id=(state.service_scope or {}).get("tenant_id") or None,
+                        session_id=state.thread_id or None,
+                    )
                     if evolve_guidelines:
                         evolve_section = f"\n\n## Evolve Guidelines\n{evolve_guidelines}"
                         special_instructions_final = (special_instructions_final or "") + evolve_section

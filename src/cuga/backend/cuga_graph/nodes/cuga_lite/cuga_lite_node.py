@@ -395,14 +395,27 @@ class CugaLiteNode(BaseNode):
             state_error = getattr(state, "error", None)
             success = not (self._has_error(state.final_answer or "") or bool(state_error))
             messages_snapshot = list(state.chat_messages)
+            _evolve_user_id = state.user_id or None
+            _evolve_namespace_id = (state.service_scope or {}).get("tenant_id") or None
+            _evolve_session_id = state.thread_id or None
             if settings.evolve.async_save:
                 task = _asyncio.create_task(
-                    EvolveIntegration.save_trajectory(messages_snapshot, task_id, success)
+                    EvolveIntegration.save_trajectory(
+                        messages_snapshot, task_id, success,
+                        user_id=_evolve_user_id,
+                        namespace_id=_evolve_namespace_id,
+                        session_id=_evolve_session_id,
+                    )
                 )
                 self._background_tasks.add(task)
                 task.add_done_callback(self._background_tasks.discard)
             else:
-                await EvolveIntegration.save_trajectory(messages_snapshot, task_id, success)
+                await EvolveIntegration.save_trajectory(
+                    messages_snapshot, task_id, success,
+                    user_id=_evolve_user_id,
+                    namespace_id=_evolve_namespace_id,
+                    session_id=_evolve_session_id,
+                )
 
         # Get metadata from state
         metadata = state.cuga_lite_metadata or {}
